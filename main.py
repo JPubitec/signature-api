@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 import base64
 import io
 import logging
@@ -17,7 +18,39 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # =======================
-# ENDPOINT: Firma en Base64
+# MODELO PARA JSON INPUT
+# =======================
+
+class FirmaJsonRequest(BaseModel):
+    archivo_b64: str
+    nombre_usuario: str
+
+# =======================
+# ENDPOINT: Firma usando JSON (para Power Automate)
+# =======================
+
+@app.post("/firmar_json/")
+async def firmar_json(data: FirmaJsonRequest):
+    try:
+        contenido = base64.b64decode(data.archivo_b64)
+        if not contenido:
+            raise HTTPException(status_code=400, detail="El archivo base64 está vacío.")
+
+        private_key = cargar_clave_privada()
+        firma = firmar_docx(contenido, private_key)
+        firma_b64 = base64.b64encode(firma).decode("utf-8")
+
+        return {
+            "firma_base64": firma_b64,
+            "usuario": data.nombre_usuario
+        }
+
+    except Exception as e:
+        logger.error(f"Error en /firmar_json/: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+# =======================
+# ENDPOINT: Firma tradicional con multipart/form-data
 # =======================
 
 @app.post("/firmar/")
